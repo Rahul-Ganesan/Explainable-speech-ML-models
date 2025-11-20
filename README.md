@@ -36,9 +36,9 @@ Aidan and Rahul Meeting 11/20:
 ---
 
 * Feature Sets for both datasets:
-*   K-Best for just excitement
-*   K-Best for just overall
-*   K-Best for joint [overall, excitement]
+  * K-Best for just excitement
+  * K-Best for just overall
+  * K-Best for joint [overall, excitement]
 
 * Independent Models:
 *   Textual:
