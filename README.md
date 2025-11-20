@@ -55,14 +55,14 @@ Aidan and Rahul Meeting 11/20:
       * Joint [overall, excitement]
 
 * Multi-Modal Models
-*   Aggregate Feature Set Models
-  *   Textual Features + Prosodic Features trained to output single overall score 
-  *   Textual Features + Prosodic Features trained to output single excited score
-  *   Textual Features + Prosodic Features trained to output joint [overall, excitement] scores
+  * Aggregate Feature Set Models
+    * Textual Features + Prosodic Features trained to output single overall score 
+    * Textual Features + Prosodic Features trained to output single excited score
+    * Textual Features + Prosodic Features trained to output joint [overall, excitement] scores
 
 * Bootstrap Indepedent Models
-*    Average(Textual Features trained to just overall, Prosodic Features trained to just overall) --> Single Overall Score 
-*    Average(Textual Features trained to just excited, Prosodic Features trained to just excited) --> Single Overall excited 
-*    Average(Textual Features trained to just [overall, excitement], Prosodic Features trained to just [overall, excitement]) --> Both [overall, excitement] Scores 
+  * Average(Textual Features trained to just overall, Prosodic Features trained to just overall) --> Single Overall Score 
+  * Average(Textual Features trained to just excited, Prosodic Features trained to just excited) --> Single Overall excited 
+  * Average(Textual Features trained to just [overall, excitement], Prosodic Features trained to just [overall, excitement]) --> Both [overall, excitement] Scores 
 
   
