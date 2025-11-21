@@ -15,7 +15,17 @@ import numpy as np
 # -----------------------------
 # Logging Setup
 # -----------------------------
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+# Create results/logs folder if it doesn't exist
+os.makedirs("results/logs", exist_ok=True)
+
+# Configure logging
+logging.basicConfig(
+    filename="results/logs/pipeline.log",  # Log file path
+    filemode="w",                          # Overwrite each run; use "a" to append
+    level=logging.INFO,                     # Minimum level to log
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+
 logger = logging.getLogger(__name__)
 
 # -----------------------------
