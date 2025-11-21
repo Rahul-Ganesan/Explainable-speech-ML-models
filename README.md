@@ -65,4 +65,25 @@ Aidan and Rahul Meeting 11/20:
   * Average(Textual Features trained to just excited, Prosodic Features trained to just excited) --> Single Overall excited 
   * Average(Textual Features trained to just [overall, excitement], Prosodic Features trained to just [overall, excitement]) --> Both [overall, excitement] Scores 
 
+---
+
+11/20
+* code management - Aidan Bagley
+ * Combine all scripts --> add python scripts (driver code) and requirements.txt 
+
+* MultiModal Model
+  * Experiment and check avg baseline -  Rahul and John
+
+* Hyperparameter Tuning
+  * Compile hyperparameter combinations (restrict to 'ideal' space) and then run them to display the results
+
+
+
+
+
+
+
+
+
+
   
