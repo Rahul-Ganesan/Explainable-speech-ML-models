@@ -67,56 +67,111 @@ def get_best_model(results_df: pd.DataFrame, output_var: Union[str, List[str]], 
 # ==========================================================
 
 def train_decision_tree(X_train: pd.DataFrame, X_test: pd.DataFrame, y_train: pd.DataFrame, y_test: pd.DataFrame) -> Tuple[GridSearchCV, float, float, float]:
-    dt_grid = {
-        "max_depth": [3, 5, 10, None],
-        "min_samples_split": [2, 5, 10]
-    }
 
-    model = DecisionTreeRegressor(random_state=42)
+    # Base Decision Tree
+    dt_base = DecisionTreeRegressor(random_state=42)
+
+    # Wrap in MultiOutputRegressor only if multi-output
     if y_train.ndim > 1 and y_train.shape[1] > 1:
-        model = MultiOutputRegressor(model)
+        model = MultiOutputRegressor(dt_base)
+        param_grid = {
+            "estimator__max_depth": [3, 5, 10, None],
+            "estimator__min_samples_split": [2, 5, 10]
+        }
+    else:
+        model = dt_base
+        param_grid = {
+            "max_depth": [3, 5, 10, None],
+            "min_samples_split": [2, 5, 10]
+        }
 
-    grid = GridSearchCV(model, dt_grid, cv=5, n_jobs=-1)
+    # Wrap in a pipeline (needed if using GridSearchCV with MultiOutput)
+    pipeline = Pipeline([
+        ("model", model)
+    ])
+
+    # Update param grid to use pipeline step name
+    if y_train.ndim > 1 and y_train.shape[1] > 1:
+        grid_param = {f"model__{k}": v for k, v in param_grid.items()}
+    else:
+        grid_param = {f"model__{k}": v for k, v in param_grid.items()}
+
+    # GridSearchCV
+    grid = GridSearchCV(
+        pipeline,
+        grid_param,
+        cv=5,
+        n_jobs=-1
+    )
+
     grid.fit(X_train, y_train)
 
     cv_score = grid.best_score_
     test_score = grid.score(X_test, y_test)
-    abs_rel_err = absolute_relative_error(y_test.values if hasattr(y_test, "values") else y_test, grid.predict(X_test))
+    abs_rel_err = absolute_relative_error(y_test.values if hasattr(y_test, "values") else y_test,
+                                          grid.predict(X_test))
 
-    logger.info(f"DT -> CV R²: {cv_score:.4f}, Test R²: {test_score:.4f}, AbsRelError: {abs_rel_err:.4f}")
+    logger.info(f"DT -> CV R^2: {cv_score:.4f}, Test R^2: {test_score:.4f}, AbsRelError: {abs_rel_err:.4f}")
     logger.info(f"Best params: {grid.best_params_}")
 
     return grid, cv_score, test_score, abs_rel_err
+
 
 def train_mlp(X_train: pd.DataFrame, X_test: pd.DataFrame, y_train: pd.DataFrame, y_test: pd.DataFrame) -> Tuple[GridSearchCV, float, float, float]:
+    
+    # Base model
+    mlp_base = MLPRegressor(max_iter=1000, random_state=42)
+
+    # Wrap base in MultiOutputRegressor if multi-output
     if y_train.ndim > 1 and y_train.shape[1] > 1:
+        model = MultiOutputRegressor(mlp_base)
+        param_grid = {
+            "estimator__hidden_layer_sizes": [(50,), (100,), (50, 50)],
+            "estimator__activation": ["relu", "tanh"],
+            "estimator__alpha": [0.0001, 0.001, 0.01]
+        }
+        # Wrap in pipeline for scaling
         pipeline = Pipeline([
             ("scaler", StandardScaler()),
-            ("mlp", MultiOutputRegressor(MLPRegressor(max_iter=1000, random_state=42)))
+            ("mlp", model)
         ])
+        grid_param = {f"mlp__{k}": v for k, v in param_grid.items()}
     else:
+        # Single-output
         pipeline = Pipeline([
             ("scaler", StandardScaler()),
-            ("mlp", MLPRegressor(max_iter=1000, random_state=42))
+            ("mlp", mlp_base)
         ])
+        param_grid = {
+            "mlp__hidden_layer_sizes": [(50,), (100,), (50, 50)],
+            "mlp__activation": ["relu", "tanh"],
+            "mlp__alpha": [0.0001, 0.001, 0.01]
+        }
+        grid_param = param_grid
 
-    mlp_grid = {
-        "mlp__hidden_layer_sizes": [(50,), (100,), (50, 50)],
-        "mlp__activation": ["relu", "tanh"],
-        "mlp__alpha": [0.0001, 0.001, 0.01]
-    }
+    # GridSearchCV
+    grid = GridSearchCV(
+        pipeline,
+        grid_param,
+        cv=5,
+        n_jobs=-1,
+        error_score="raise"
+    )
 
-    grid = GridSearchCV(pipeline, mlp_grid, cv=5, n_jobs=-1, error_score="raise")
     grid.fit(X_train, y_train)
 
     cv_score = grid.best_score_
     test_score = grid.score(X_test, y_test)
-    abs_rel_err = absolute_relative_error(y_test.values if hasattr(y_test, "values") else y_test, grid.predict(X_test))
+    abs_rel_err = absolute_relative_error(
+        y_test.values if hasattr(y_test, "values") else y_test,
+        grid.predict(X_test)
+    )
 
-    logger.info(f"MLP -> CV R²: {cv_score:.4f}, Test R²: {test_score:.4f}, AbsRelError: {abs_rel_err:.4f}")
+    logger.info(f"MLP -> CV R^2: {cv_score:.4f}, Test R^2: {test_score:.4f}, AbsRelError: {abs_rel_err:.4f}")
     logger.info(f"Best params: {grid.best_params_}")
 
     return grid, cv_score, test_score, abs_rel_err
+
 
 # ==========================================================
 # Main Modeling Pipeline
