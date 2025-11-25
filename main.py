@@ -8,7 +8,7 @@ import sys
 import time
 import logging
 from typing import Tuple, List, Dict
-
+import yaml
 import pandas as pd
 import numpy as np
 
@@ -28,6 +28,10 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+# Load configuration
+with open("config.yaml", "r") as config_file:
+    config = yaml.safe_load(config_file)
+
 # -----------------------------
 # Create required directories
 # -----------------------------
@@ -45,65 +49,92 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 # ==========================================================
 def main_pipeline():
     start_total = time.time()
-
+    
     # -----------------------------
     # Clean Prosodic Data
     # -----------------------------
-    from src.prosodic_data_cleaning import process_prosodic_data
+    if config.get("run_prosodic_data_cleaning", True):
+        from src.prosodic_data_cleaning import process_prosodic_data
 
-    logger.info("Cleaning prosodic data...")
-    start = time.time()
-    cleaned_prosodic_allq, cleaned_prosodic_avg = process_prosodic_data(
-        prosodic_path="data/prosodic_features.csv",
-        score_path="data/scores.csv",
-        output_allq_path="data/all_q_cleaned_prosodic_features.csv",
-        output_avg_path="data/avg_cleaned_prosodic_features.csv"
-    )
-    logger.info(f"Prosodic data cleaned in {time.time() - start:.2f} seconds.")
-
+        logger.info("Cleaning prosodic data...")
+        start = time.time()
+        cleaned_prosodic_allq, cleaned_prosodic_avg = process_prosodic_data(
+            prosodic_path="data/prosodic_features.csv",
+            score_path="data/scores.csv",
+            output_allq_path="results/all_q_cleaned_prosodic_features.csv",
+            output_avg_path="results/avg_cleaned_prosodic_features.csv"
+        )
+        logger.info(f"Prosodic data cleaned in {time.time() - start:.2f} seconds.")
+    else:
+        # Load pre-cleaned prosodic data
+        logger.info("Cleaned prosodic data...")
+        cleaned_prosodic_allq = pd.read_csv("results/all_q_cleaned_prosodic_features.csv")
+        cleaned_prosodic_avg = pd.read_csv("results/avg_cleaned_prosodic_features.csv")
+        logger.info("Cleaned prosodic data loaded.")
+    
     # -----------------------------
     # Clean Textual Data
     # -----------------------------
-    from src.textual_data_cleaning import process_textual_data
+    if config.get("run_textual_data_cleaning", True):
+        from src.textual_data_cleaning import process_textual_data
 
-    logger.info("Cleaning textual data...")
-    start = time.time()
-    cleaned_textual = process_textual_data(
-        transcripts_path="data/transcripts.csv",
-        score_path="data/scores.csv",
-        output_path="data/text_cleaned_features.csv"
-    )
-    logger.info(f"Textual data cleaned in {time.time() - start:.2f} seconds.")
+        logger.info("Cleaning textual data...")
+        start = time.time()
+        cleaned_textual = process_textual_data(
+            transcripts_path="data/transcripts.csv",
+            score_path="data/scores.csv",
+            output_textual_path="results/text_cleaned_features.csv"
+        )
+        logger.info(f"Textual data cleaned in {time.time() - start:.2f} seconds.")
+    else:
+        # Load pre-cleaned textual data
+        logger.info("Loading pre-cleaned textual data...")
+        cleaned_textual = pd.read_csv("results/text_cleaned_features.csv")
+        logger.info("Cleaned textual data loaded.")
+        
+    return
+
 
     # -----------------------------
     # Feature Selection
     # -----------------------------
-    from src.feature_selection import run_feature_selection
+    if config.get("run_feature_selection", True):
+        from src.feature_selection import run_feature_selection
 
-    logger.info("Running feature selection...")
-    start = time.time()
-    prosodic_avg_features = run_feature_selection(cleaned_prosodic_avg, dataset_name="AVERAGED PROSODIC")
-    prosodic_all_features = run_feature_selection(cleaned_prosodic_allq, dataset_name="ALL Q PROSODIC")
-    text_features = run_feature_selection(cleaned_textual, dataset_name="TEXT FEATURES")
-    logger.info(f"Feature selection completed in {time.time() - start:.2f} seconds.")
+        logger.info("Running feature selection...")
+        start = time.time()
+        prosodic_avg_features = run_feature_selection(cleaned_prosodic_avg, dataset_name="AVERAGED PROSODIC")
+        prosodic_all_features = run_feature_selection(cleaned_prosodic_allq, dataset_name="ALL Q PROSODIC")
+        text_features = run_feature_selection(cleaned_textual, dataset_name="TEXT FEATURES")
+        logger.info(f"Feature selection completed in {time.time() - start:.2f} seconds.")
+    else:
+        # Load pre-selected features
+        logger.info("Loading pre-selected features...")
+        prosodic_avg_features = pd.read_csv("results/selected_features_avg_prosodic.csv")['feature'].tolist()
+        prosodic_all_features = pd.read_csv("results/selected_features_allq_prosodic.csv")['feature'].tolist()
+        text_features = pd.read_csv("results/selected_features_textual.csv")['feature'].tolist()
+        logger.info("Pre-selected features loaded.")
 
     # -----------------------------
     # Independent Modeling
     # -----------------------------
     from src.modeling import run_modeling
-
-    logger.info("Modeling on prosodic all-question dataset...")
-    start = time.time()
-    all_q_prosodic_results, best_all_q_models = run_modeling(
-        df=cleaned_prosodic_allq,
-        feature_sets=prosodic_all_features,
-        dataset_name="ALL Q PROSODIC",
-        output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
-        test_size=0.2,
-        random_state=42,
-        save_path="results/all_q_prosodic_modeling_results.csv"
-    )
-    logger.info(f"All-question prosodic modeling completed in {time.time() - start:.2f} seconds.")
+    if config.get("run_prosodic_model_training", True):
+        logger.info("Modeling on prosodic all-question dataset...")
+        start = time.time()
+        all_q_prosodic_results, best_all_q_models = run_modeling(
+            df=cleaned_prosodic_allq,
+            feature_sets=prosodic_all_features,
+            dataset_name="ALL Q PROSODIC",
+            output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
+            test_size=0.2,
+            random_state=42,
+            save_path="results/all_q_prosodic_modeling_results.csv"
+        )
+        logger.info(f"All-question prosodic modeling completed in {time.time() - start:.2f} seconds.")
+    else:
+        logger.info("Loading pre-computed all-question prosodic modeling results...")
+        all_q_prosodic_results = pd.read_csv("results/all_q_prosodic_modeling_results.csv")
 
     logger.info("Modeling on prosodic averaged dataset...")
     start = time.time()
