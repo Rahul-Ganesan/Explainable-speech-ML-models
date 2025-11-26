@@ -102,6 +102,7 @@ def run_feature_selection(
     df: pd.DataFrame,
     dataset_name: str,
     target_cols: List[str] = ['Overall', 'Excited'],
+    output_path: str = None,
     k_values: List[int] = [5, 10, 15, 20, 25, 30],
     test_size: float = 0.20,
     random_state: int = 42,
@@ -117,7 +118,7 @@ def run_feature_selection(
         corr_matrix = df.corr(method='pearson')
         for target in target_cols:
             print_corr_with_target(corr_matrix, target)
-
+            
     X = df.drop(columns=target_cols)
     y = df[target_cols]
     X_train, X_test, y_train, y_test = train_test_split(
@@ -158,7 +159,12 @@ def run_feature_selection(
         logger.info(f"RF Selected: {sorted(rf_top_k)}")
         logger.info(f"Feature selection k={k} completed in {time.time()-start:.2f} seconds")
 
-    return feature_sets
+        if output_path:
+            feature_sets_df = pd.DataFrame(feature_sets, columns=["Method", "K", "Features"])
+            feature_sets_df.to_csv(output_path, index=False)
+            logger.info(f"Feature sets saved to {output_path}")
+
+    return feature_sets_df
 
 
 # ==========================================================

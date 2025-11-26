@@ -174,7 +174,7 @@ def process_textual_data(
 
     # --- Concatenate all features ---
     all_features_df = pd.concat([
-        merged_df[["Participant", "Interview", "processed_interviewee_text"]].reset_index(drop=True),
+        merged_df[["Participant", "Interview", "Overall", "Excited"]].reset_index(drop=True),
         tfidf_df.reset_index(drop=True),
         pos_features_df.reset_index(drop=True),
         sentiment_df.reset_index(drop=True),

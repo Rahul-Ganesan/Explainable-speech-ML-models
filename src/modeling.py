@@ -5,7 +5,7 @@
 import logging
 import time
 from typing import Any, Dict, List, Tuple, Union
-
+import re
 import numpy as np
 import pandas as pd
 from sklearn.tree import DecisionTreeRegressor
@@ -30,11 +30,52 @@ def absolute_relative_error(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     abs_rel_error = np.abs(y_true - y_pred) / np.maximum(np.abs(y_true), 1e-8)
     return np.mean(abs_rel_error)
 
-def get_best_model(results_df: pd.DataFrame, output_var: Union[str, List[str]], model_type: str = "DT") -> Dict[str, Any]:
+# def get_best_model(results_df: pd.DataFrame, output_var: Union[str, List[str]], model_type: str = "DT") -> Dict[str, Any]:
+#     """
+#     Returns the best model result row for a given output and model type
+#     based on highest R² and lowest Absolute Relative Error.
+#     """
+#     model_col = f"{model_type}_Test_R2"
+#     filtered = results_df[results_df["Output_Variable"] == str(output_var)]
+
+#     if filtered.empty:
+#         return None
+
+#     best_row = filtered.sort_values(
+#         by=[model_col, f"{model_type}_Absolute_Relative_Error"],
+#         ascending=[False, True]
+#     ).iloc[0]
+
+#     multi_output = isinstance(output_var, list) or ("Overall" in str(output_var) and "Excited" in str(output_var))
+
+#     return {
+#         "dataset": best_row["Dataset"],
+#         "features": best_row.get("Feature_List", None),
+#         "feature_selector": best_row["Feature_Selector"],
+#         "num_features": best_row["Num_Features"],
+#         "output": best_row["Output_Variable"],
+#         "model_type": model_type,
+#         "multi_output": multi_output,
+#         "cv_r2": best_row[f"{model_type}_CV_R2"],
+#         "test_r2": best_row[f"{model_type}_Test_R2"],
+#         "absolute_relative_error": best_row[f"{model_type}_Absolute_Relative_Error"],
+#         "params": best_row[f"{model_type}_Best_Params"]
+#     }
+
+from typing import Union, List, Dict, Any
+import pandas as pd
+import numpy as np
+
+def get_best_model(results_df: pd.DataFrame, 
+                   output_var: Union[str, List[str]], 
+                   model_type: str = "DT") -> Dict[str, Any]:
     """
     Returns the best model result row for a given output and model type
     based on highest R² and lowest Absolute Relative Error.
+
+    This version auto-cleans all fields so outputs are CSV/table friendly.
     """
+
     model_col = f"{model_type}_Test_R2"
     filtered = results_df[results_df["Output_Variable"] == str(output_var)]
 
@@ -46,21 +87,36 @@ def get_best_model(results_df: pd.DataFrame, output_var: Union[str, List[str]], 
         ascending=[False, True]
     ).iloc[0]
 
-    multi_output = isinstance(output_var, list) or ("Overall" in str(output_var) and "Excited" in str(output_var))
+    # ----- Determine multi-output -----
+    multi_output = isinstance(output_var, list) or (
+        "Overall" in str(output_var) and "Excited" in str(output_var)
+    )
 
+    # ----- Helpers to clean values -----
+    def clean_value(val):
+        if isinstance(val, (np.integer, np.floating)):
+            return val.item()
+        if isinstance(val, list):
+            return "; ".join(map(str, val))
+        if isinstance(val, dict):
+            return "; ".join(f"{k}={v}" for k, v in val.items())
+        return val
+
+    # ----- Construct clean output dictionary -----
     return {
         "dataset": best_row["Dataset"],
-        "features": best_row.get("Feature_List", None),
-        "feature_selector": best_row["Feature_Selector"],
-        "num_features": best_row["Num_Features"],
-        "output": best_row["Output_Variable"],
+        "features": clean_value(best_row.get("Feature_List", None)),
+        "feature_selector": clean_value(best_row["Feature_Selector"]),
+        "num_features": int(best_row["Num_Features"]),
+        "output": str(best_row["Output_Variable"]),
         "model_type": model_type,
         "multi_output": multi_output,
-        "cv_r2": best_row[f"{model_type}_CV_R2"],
-        "test_r2": best_row[f"{model_type}_Test_R2"],
-        "absolute_relative_error": best_row[f"{model_type}_Absolute_Relative_Error"],
-        "params": best_row[f"{model_type}_Best_Params"]
+        "cv_r2": clean_value(best_row[f"{model_type}_CV_R2"]),
+        "test_r2": clean_value(best_row[f"{model_type}_Test_R2"]),
+        "absolute_relative_error": clean_value(best_row[f"{model_type}_Absolute_Relative_Error"]),
+        "params": clean_value(best_row[f"{model_type}_Best_Params"])
     }
+
 
 # ==========================================================
 # Model Training Functions
@@ -120,7 +176,7 @@ def train_decision_tree(X_train: pd.DataFrame, X_test: pd.DataFrame, y_train: pd
 def train_mlp(X_train: pd.DataFrame, X_test: pd.DataFrame, y_train: pd.DataFrame, y_test: pd.DataFrame) -> Tuple[GridSearchCV, float, float, float]:
     
     # Base model
-    mlp_base = MLPRegressor(max_iter=1000, random_state=42)
+    mlp_base = MLPRegressor(random_state=42, max_iter=1000)
 
     # Wrap base in MultiOutputRegressor if multi-output
     if y_train.ndim > 1 and y_train.shape[1] > 1:
@@ -179,12 +235,13 @@ def train_mlp(X_train: pd.DataFrame, X_test: pd.DataFrame, y_train: pd.DataFrame
 
 def run_modeling(
     df: pd.DataFrame,
-    feature_sets: List[Tuple[str, int, List[str]]],
+    feature_sets: pd.DataFrame,
     dataset_name: str,
     output_vars: List[Any] = ['Overall', 'Excited', ['Overall', 'Excited']],
     test_size: float = 0.2,
     random_state: int = 42,
-    save_path: str = None
+    results_save_path: str = None,
+    best_model_save_path: str = None
 ) -> Tuple[pd.DataFrame, Dict[str, Dict[str, Any]]]:
     """
     Runs Decision Tree and MLP models for all feature sets and targets.
@@ -192,8 +249,15 @@ def run_modeling(
     """
 
     total_results_df = pd.DataFrame()
+    for _, row in feature_sets.iterrows():
+        feature_selector = row['Method']
+        k = row['K']
+        raw_features  = row['Features']
+        if isinstance(raw_features, str):
+            feature_names = re.findall(r"'([^']+)'", raw_features)
+        else:
+            feature_names = raw_features
 
-    for feature_selector, k, feature_names in feature_sets:
         if len(feature_names) == 0:
             continue
 
@@ -228,17 +292,39 @@ def run_modeling(
 
             total_results_df = pd.concat([total_results_df, pd.DataFrame([row])], ignore_index=True)
 
-    if save_path:
-        total_results_df.to_csv(save_path, index=False)
-        logger.info(f"Results saved to {save_path}")
+    if results_save_path:
+        total_results_df.to_csv(results_save_path, index=False)
+        logger.info(f"Results saved to {results_save_path}")
 
-    best_models = {"DT": {}, "MLP": {}}
+    best_models = []
+
     for model_type in ["DT", "MLP"]:
-        best_models[model_type]["Overall"] = get_best_model(total_results_df, "Overall", model_type)
-        best_models[model_type]["Excited"] = get_best_model(total_results_df, "Excited", model_type)
-        best_models[model_type]["Multi-Output"] = get_best_model(total_results_df, ["Overall", "Excited"], model_type)
+        for output in ["Overall", "Excited", ["Overall", "Excited"]]:
 
-    return total_results_df, best_models
+            best_model = get_best_model(total_results_df, output, model_type)
+
+            if best_model is not None:
+                best_models.append(best_model)
+
+    # Convert to DataFrame
+    best_models_df = pd.DataFrame(best_models)
+
+    # Ensure clean column order
+    column_order = [
+        "dataset", "model_type", "output", "multi_output",
+        "features", "feature_selector", "num_features",
+        "cv_r2", "test_r2", "absolute_relative_error", "params"
+    ]
+    best_models_df = best_models_df[column_order]
+
+    # Save
+    if best_model_save_path:
+        best_models_df.to_csv(best_model_save_path, index=False)
+        logger.info(f"Best models saved to {best_model_save_path}")
+
+    return total_results_df, best_models_df
+
+
 
 # ==========================================================
 # Standalone Execution

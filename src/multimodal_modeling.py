@@ -3,6 +3,7 @@
 # ==========================================================
 
 import logging
+import re
 from typing import Any, Dict, List, Union
 
 import pandas as pd
@@ -14,7 +15,7 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.neural_network import MLPRegressor
 from sklearn.multioutput import MultiOutputRegressor
 
-from modeling import train_decision_tree, train_mlp
+from src.modeling import train_decision_tree, train_mlp
 
 # -----------------------------
 # Logging Setup
@@ -78,8 +79,24 @@ def run_multimodal_modeling(
     # ================================
     # FEATURE FUSION
     # ================================
-    for p_selector, p_k, p_features in prosodic_feature_sets:
-        for t_selector, t_k, t_features in textual_feature_sets:
+    for _, row in prosodic_feature_sets.iterrows():
+        p_selector = row['Method']
+        p_k = row['K']
+        p_raw_features  = row['Features']
+        if isinstance(p_raw_features, str):
+            p_features = re.findall(r"'([^']+)'", p_raw_features)
+        else:
+            p_features = p_raw_features
+            
+        for _, row in textual_feature_sets.iterrows():
+            t_selector = row['Method']
+            t_k = row['K']
+            t_raw_features  = row['Features']
+            if isinstance(t_raw_features, str):
+                t_features = re.findall(r"'([^']+)'", t_raw_features)
+            else:
+                t_features = t_raw_features
+            
             X_fused = pd.concat([prosodic_df[p_features], textual_df[t_features]], axis=1)
 
             for output_var in output_vars:

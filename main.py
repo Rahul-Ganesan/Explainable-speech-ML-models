@@ -92,97 +92,140 @@ def main_pipeline():
         cleaned_textual = pd.read_csv("results/text_cleaned_features.csv")
         logger.info("Cleaned textual data loaded.")
         
-    return
-
 
     # -----------------------------
     # Feature Selection
     # -----------------------------
-    if config.get("run_feature_selection", True):
-        from src.feature_selection import run_feature_selection
+    logger.info("Starting feature selection...")
+    from src.feature_selection import run_feature_selection
 
-        logger.info("Running feature selection...")
+    # Prosodic Averaged Question Feature Selection
+    if config.get("run_avg_q_prosodic_feature_selection", True):
+        logger.info("Running averaged question prosodic feature selection...")
         start = time.time()
-        prosodic_avg_features = run_feature_selection(cleaned_prosodic_avg, dataset_name="AVERAGED PROSODIC")
-        prosodic_all_features = run_feature_selection(cleaned_prosodic_allq, dataset_name="ALL Q PROSODIC")
-        text_features = run_feature_selection(cleaned_textual, dataset_name="TEXT FEATURES")
-        logger.info(f"Feature selection completed in {time.time() - start:.2f} seconds.")
+        prosodic_avg_features_df = run_feature_selection(cleaned_prosodic_avg, dataset_name="AVERAGED PROSODIC", output_path="results/selected_features_avg_q_prosodic.csv")
+        logger.info(f"Averaged question Feature selection completed in {time.time() - start:.2f} seconds.")
     else:
-        # Load pre-selected features
-        logger.info("Loading pre-selected features...")
-        prosodic_avg_features = pd.read_csv("results/selected_features_avg_prosodic.csv")['feature'].tolist()
-        prosodic_all_features = pd.read_csv("results/selected_features_allq_prosodic.csv")['feature'].tolist()
-        text_features = pd.read_csv("results/selected_features_textual.csv")['feature'].tolist()
-        logger.info("Pre-selected features loaded.")
+        prosodic_avg_features_df = pd.read_csv("results/selected_features_avg_q_prosodic.csv")
+    
+    # Prosodic All Question Feature Selection
+    if config.get("run_all_q_prosodic_feature_selection", True):        
+        logger.info("Running all question prosodic feature selection...")
+        start = time.time()
+        prosodic_all_features_df = run_feature_selection(cleaned_prosodic_allq, dataset_name="ALL Q PROSODIC", output_path="results/selected_features_all_q_prosodic.csv")
+        logger.info(f"All question Feature selection completed in {time.time() - start:.2f} seconds.")
+    else:
+        prosodic_all_features_df = pd.read_csv("results/selected_features_all_q_prosodic.csv")
+    
+    # Textual Feature Selection
+    if config.get("run_textual_feature_selection", True):        
+        logger.info("Running textual feature selection...")
+        start = time.time()
+        text_features_df = run_feature_selection(cleaned_textual, dataset_name="TEXT FEATURES", output_path="results/selected_features_textual.csv")
+        logger.info(f"Textual Feature selection completed in {time.time() - start:.2f} seconds.")
+    else:
+        text_features_df = pd.read_csv("results/selected_features_textual.csv")
 
+    logger.info("Feature selection completed.")
+    
     # -----------------------------
     # Independent Modeling
     # -----------------------------
+    logger.info("Starting independent modeling...")
     from src.modeling import run_modeling
+        
+    # Prosodic Averaged Question Modeling
+    if config.get("run_avg_q_prosodic_model_training", True):
+        logger.info("Modeling on prosodic averaged dataset...")
+        start = time.time()
+        avg_prosodic_results_df, best_avg_prosodic_models_df = run_modeling(
+            df=cleaned_prosodic_avg,
+            feature_sets=prosodic_avg_features_df,
+            dataset_name="AVERAGED PROSODIC",
+            output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
+            test_size=0.2,
+            random_state=42,
+            results_save_path="results/avg_prosodic_modeling_results.csv",
+            best_model_save_path="results/best_models_averaged_prosodic.csv"
+        )
+        logger.info(f"Averaged prosodic modeling completed in {time.time() - start:.2f} seconds.")
+    else:
+        logger.info("Loading pre-computed averaged prosodic modeling results...")
+        avg_prosodic_results_df = pd.read_csv("results/avg_prosodic_modeling_results.csv")
+        best_avg_prosodic_models_df = pd.read_csv("results/best_models_averaged_prosodic.csv")
+        logger.info("Averaged prosodic modeling results loaded.")
+
+    # Prosodic All Question Modeling
     if config.get("run_prosodic_model_training", True):
         logger.info("Modeling on prosodic all-question dataset...")
         start = time.time()
-        all_q_prosodic_results, best_all_q_models = run_modeling(
+        all_q_prosodic_results_df, best_all_q_models_df = run_modeling(
             df=cleaned_prosodic_allq,
-            feature_sets=prosodic_all_features,
+            feature_sets=prosodic_all_features_df,
             dataset_name="ALL Q PROSODIC",
             output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
             test_size=0.2,
             random_state=42,
-            save_path="results/all_q_prosodic_modeling_results.csv"
+            results_save_path="results/all_q_prosodic_modeling_results.csv",
+            best_model_save_path="results/best_models_all_q_prosodic.csv"
         )
         logger.info(f"All-question prosodic modeling completed in {time.time() - start:.2f} seconds.")
     else:
         logger.info("Loading pre-computed all-question prosodic modeling results...")
-        all_q_prosodic_results = pd.read_csv("results/all_q_prosodic_modeling_results.csv")
+        all_q_prosodic_results_df = pd.read_csv("results/all_q_prosodic_modeling_results.csv")
+        best_all_q_models_df = pd.read_csv("results/best_models_all_q_prosodic.csv")
+        logger.info("All-question prosodic modeling results loaded.")
 
-    logger.info("Modeling on prosodic averaged dataset...")
-    start = time.time()
-    avg_prosodic_results, best_avg_prosodic_models = run_modeling(
-        df=cleaned_prosodic_avg,
-        feature_sets=prosodic_avg_features,
-        dataset_name="AVERAGED PROSODIC",
-        output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
-        test_size=0.2,
-        random_state=42,
-        save_path="results/avg_prosodic_modeling_results.csv"
-    )
-    logger.info(f"Averaged prosodic modeling completed in {time.time() - start:.2f} seconds.")
-
-    logger.info("Modeling on textual dataset...")
-    start = time.time()
-    textual_results, best_textual_models = run_modeling(
-        df=cleaned_textual,
-        feature_sets=text_features,
-        dataset_name="TEXT FEATURES",
-        output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
-        test_size=0.2,
-        random_state=42,
-        save_path="results/textual_modeling_results.csv"
-    )
-    logger.info(f"Textual modeling completed in {time.time() - start:.2f} seconds.")
+    # Textual Modeling
+    if config.get("run_textual_model_training", True):
+        logger.info("Modeling on textual dataset...")
+        start = time.time()
+        textual_results_df, best_textual_models_df = run_modeling(
+            df=cleaned_textual,
+            feature_sets=text_features_df,
+            dataset_name="TEXT FEATURES",
+            output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
+            test_size=0.2,
+            random_state=42,
+            results_save_path="results/textual_modeling_results.csv",
+            best_model_save_path="results/best_models_textual.csv"
+        )
+        logger.info(f"Textual modeling completed in {time.time() - start:.2f} seconds.")
+        
+    else:
+        logger.info("Loading pre-computed textual modeling results...")
+        textual_results_df = pd.read_csv("results/textual_modeling_results.csv")
+        best_textual_models_df = pd.read_csv("results/best_models_textual.csv")
+        logger.info("Textual modeling results loaded.")
+        
+    logger.info("Independent modeling completed.")
 
     # -----------------------------
     # Multimodal Modeling
     # -----------------------------
     from src.multimodal_modeling import run_multimodal_modeling
 
-    logger.info("Running multimodal modeling (prosodic + textual)...")
-    start = time.time()
-    multimodal_results = run_multimodal_modeling(
-        prosodic_df=cleaned_prosodic_avg,
-        textual_df=cleaned_textual,
-        prosodic_feature_sets=prosodic_avg_features,
-        textual_feature_sets=text_features,
-        best_prosodic_models=best_avg_prosodic_models,
-        best_textual_models=best_textual_models,
-        dataset_name="MULTIMODAL AVG PROSODIC + TEXT",
-        output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
-        test_size=0.2,
-        random_state=42,
-        save_path="results/multimodal_modeling_results.csv"
-    )
-    logger.info(f"Multimodal modeling completed in {time.time() - start:.2f} seconds.")
+    if config.get("run_multimodal_model_training", True):
+        logger.info("Running multimodal modeling (prosodic + textual)...")
+        start = time.time()
+        multimodal_results = run_multimodal_modeling(
+            prosodic_df=cleaned_prosodic_avg,
+            textual_df=cleaned_textual,
+            prosodic_feature_sets=prosodic_avg_features_df,
+            textual_feature_sets=text_features_df,
+            best_prosodic_models=best_avg_prosodic_models_df,
+            best_textual_models=best_textual_models_df,
+            dataset_name="MULTIMODAL AVG PROSODIC + TEXT",
+            output_vars=['Overall', 'Excited', ['Overall', 'Excited']],
+            test_size=0.2,
+            random_state=42,
+            save_path="results/multimodal_modeling_results.csv"
+        )
+        logger.info(f"Multimodal modeling completed in {time.time() - start:.2f} seconds.")
+    else:
+        logger.info("Loading pre-computed multimodal modeling results...")
+        multimodal_results = pd.read_csv("results/multimodal_modeling_results.csv")
+        logger.info("Multimodal modeling results loaded.")
 
     logger.info(f"Total execution time: {time.time() - start_total:.2f} seconds")
     logger.info("All modeling finished successfully!")
