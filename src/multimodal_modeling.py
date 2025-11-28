@@ -177,7 +177,7 @@ def run_multimodal_modeling(
 
     if save_path:
         results_df.to_csv(save_path, index=False)
-        logger.info(f"\n✅ Multimodal results saved to: {save_path}")
+        logger.info(f"\n Multimodal results saved to: {save_path}")
 
     return results_df
 
