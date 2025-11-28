@@ -11,7 +11,17 @@ __pycache__/
 .idea/
 
 # Data files
-results/
+results/all_q_cleaned_prosodic_features.csv
+results/all_q_prosodic_modeling_results.csv
+results/selected_features_all_q_prosodic.csv
+
+results/avg_cleaned_prosodic_features.csv
+results/avg_prosodic_modeling_results.csv
+results/selected_features_avg_q_prosodic.csv
+
+results/text_cleaned_features.csv
+results/selected_features_textual.csv
+results/textual_modeling_results.csv
 
 # Logs
 logs/
